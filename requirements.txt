@@ -1,0 +1,9 @@
+unidecode
+PyInquirer
+git+git://github.com/divijbindlish/parse-torrent-name.git@PTN
+requests
+tvdbsimple
+tmdbsimple
+urwid
+qbittorrent-api
+nltk
