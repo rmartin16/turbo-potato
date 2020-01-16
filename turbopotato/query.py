@@ -1,6 +1,8 @@
+from functools import partial
 import logging
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+from multiprocessing.pool import ThreadPool
 from requests import HTTPError
 from string import punctuation
 from typing import List
@@ -14,6 +16,7 @@ from turbopotato.helpers import QueryResult
 from turbopotato.helpers import MediaType
 
 logger = logging.getLogger(__name__)
+MAX_THREADS = 30
 
 
 def err_str(e: Exception = None):
@@ -45,104 +48,141 @@ class DBQuery:
                       key=lambda m: (m.fuzzy_match_score, m.season, m.episode),
                       reverse=True)
 
+    def print_query_summary(self):
+        total_exact_matches = len(self.exact_matches)
+        total_fuzzy_matches = len(self.fuzzy_matches)
+        logger.info(f'Found {total_exact_matches} exact matches and {total_fuzzy_matches} fuzzy matches.')
+        total = total_exact_matches + total_fuzzy_matches
+        done = False
+        for name, matches in {'Exact matches': self.exact_matches, 'Fuzzy matches': self.fuzzy_matches_sorted}.items():
+            if matches:
+                logger.info(f'{name}:')
+                pad = len(str(len(matches)))
+                for count, result in enumerate(matches):
+                    if count > 9:
+                        logger.info(f'{total - count} matches not printed...')
+                        done = True
+                        break
+                    logger.info(f' {count + 1:{pad}d} {result}')
+                if done:
+                    break
+
 
 class TVDBQuery(DBQuery):
     TVDB_API_KEY = ""  # override key in file
 
-    def __init__(self, parts: MediaNameParse = None):
+    def __init__(self):
         super().__init__()
-        self.parts = parts
         self.series_list = list()
-        self.series_idx = dict()
+        self.series_exact_match_list = list()
         self.exact_episode_matches = list()
         self.fuzzy_episode_matches = list()
 
-    def query(self):
+    def query(self, parts: MediaNameParse = None):
         tvdb.KEYS.API_KEY = TVDBQuery.TVDB_API_KEY or config.TVDB_API_KEY
         logger.info('>>> Starting TVDB query...')
+        if not parts:
+            logger.error('Query aborted. MediaNameParse is None.')
+            return
 
-        self._get_series()
-        self.series_idx = {s.get('id'): s for s in self.series_list}
+        self._get_series(parts=parts, parent_parts=parts.parent_parts)
 
-        if self.parts.season != '' and self.parts.episode != '':
-            for series in self.series_list:
-                self._get_episodes_from_season_and_episode_no(series=series)
-        if not self.exact_episode_matches:
-            for series in self.series_list:
-                self._get_episodes_from_episode_title(series=series)
+        for series_list in (self.series_exact_match_list, self.series_list):
+            if not series_list:
+                continue
+            threads = MAX_THREADS if len(series_list) > MAX_THREADS else len(series_list)
+            with ThreadPool(processes=threads) as pool:
+                if parts.season != '' and parts.episode != '':
+                    pool.map(partial(self._get_episodes_from_season_and_episode_no, parts=parts), series_list)
+                if not self.exact_episode_matches:
+                    pool.map(partial(self._get_episodes_from_episode_title, parts=parts), series_list)
+            if self.exact_episode_matches or self.fuzzy_episode_matches:
+                break
 
         self.exact_matches = [QueryResult(data=e, media_type=MediaType.SERIES) for e in self.exact_episode_matches]
         self.fuzzy_matches = [QueryResult(data=e, media_type=MediaType.SERIES) for e in self.fuzzy_episode_matches]
 
-        logger.info(f'Found {len(self.exact_episode_matches)} exact matches and '
-                    f'{len(self.fuzzy_episode_matches)} fuzzy matches.')
+        self.print_query_summary()
         logger.info('<<< Finished TVDB query')
         return self
 
-    def _get_series(self):
+    @staticmethod
+    def query_for_series(title: str = None):
+        if not title:
+            return
+        try:
+            return tvdb.Search().series(name=title)
+        except HTTPError:
+            return {}
+
+    def _get_series(self, parts: MediaNameParse, parent_parts: MediaNameParse):
         ''' use defaulted series ID '''
-        if self.parts.series_id:
+        if parts.series_id:
             try:
-                logger.debug(f'Querying for series using series ID "{self.parts.series_id}"...')
-                results = tvdb.Series(id=self.parts.series_id).info()
+                results = tvdb.Series(id=parts.series_id).info()
                 add_unique_elements(self.series_list, results)
-                logger.debug(f'Found {len(results)} series: {[s["seriesName"] for s in results]}')
+                logger.debug(f'Found "{results["seriesName"]}" for series ID "{parts.series_id}"')
             except HTTPError as e:
-                logger.error(f'TVDB could not find series using defaulted series ID "{self.parts.series_id}". Error: {err_str(e)}')
+                logger.error(f'TVDB did not find series using defaulted series ID "{parts.series_id}". Error: {err_str(e)}')
+
+        if self.series_list:
+            return
 
         ''' search for series with title '''
-        if not self.series_list:
-            searches = ((self.parts.title, self.parts.year),
-                        (getattr(self.parts.parent_parts, 'title', None), getattr(self.parts.parent_parts, 'year', None)))
-            for title, year in searches:
-                results = None
-                if title and year:
-                    try:
-                        logger.debug(f'Querying for series using "{title}" and "{year}"...')
-                        results = tvdb.Search().series(name=f'{title}, {year}')
-                        add_unique_elements(self.series_list, results)
-                        logger.debug(f'Found {len(results)} series: {[s["seriesName"] for s in results]}')
-                    except HTTPError as e:
-                        logger.debug(f'TVDB returned zero series\'. Error: {err_str(e)}')
-                if title and not results:
-                    try:
-                        logger.debug(f'Querying for series using "{title}"...')
-                        results = tvdb.Search().series(name=title)
-                        add_unique_elements(self.series_list, results)
-                        logger.debug(f'Found {len(results)} series: {[s["seriesName"] for s in results]}')
-                    except HTTPError as e:
-                        logger.debug(f'TVDB returned zero series\'. Error: {err_str(e)}')
+        for title, year in ((parts.title, parts.year), (parent_parts.title, parent_parts.year)):
+            results = None
+            if title and year:
+                try:
+                    results = tvdb.Search().series(name=f'{title} {year}')
+                    add_unique_elements(self.series_list, results)
+                    logger.debug(f'Found {len(results)} series using "{title} {year}": {[s["seriesName"] for s in results]}')
+                except HTTPError as e:
+                    logger.debug(f'TVDB returned zero series\' using "{title} {year}". Error: {err_str(e)}')
+            if title and not results:
+                try:
+                    results = tvdb.Search().series(name=title)
+                    add_unique_elements(self.series_list, results)
+                    logger.debug(f'Found {len(results)} series using "{title}": {[s["seriesName"] for s in results]}')
+                except HTTPError as e:
+                    logger.debug(f'TVDB returned zero series\' using "{title}". Error: {err_str(e)}')
 
-    def _get_episodes_from_season_and_episode_no(self, series: dict = None):
-        if series is None:
+        for series in self.series_list:
+            if series.get('seriesName') in (parts.title, parts.parent_parts.title):
+                add_unique_elements(self.series_exact_match_list, series)
+
+    def _get_episodes_from_season_and_episode_no(self, series: dict = None, parts: MediaNameParse = None):
+        if not parts:
+            return
+        season = parts.season
+        episode = parts.episode
+        if series is None or season is '' or episode is '':
             return
 
         try:
-            logger.debug(f'Querying for episodes for "{series.get("seriesName")}" using season {self.parts.season} '
-                         f'and episode {self.parts.episode}...')
-            results = tvdb.Series_Episodes(id=series.get('id'),
-                                           airedSeason=self.parts.season,
-                                           airedEpisode=self.parts.episode
-                                           ).all()
+            results = tvdb.Series_Episodes(id=series.get('id'), airedSeason=season, airedEpisode=episode).all()
             results = list(map(lambda r: dict(r, _series=series), results))
             add_unique_elements(self.exact_episode_matches, results)
-            logger.debug(f'Found {len(results)} episodes: {[e.get("episodeName") for e in results]}')
+            logger.debug(f'Found {len(results)} episodes for "{series.get("seriesName")}" using season '
+                         f'{season} and episode {episode}: {[e.get("episodeName") for e in results]}')
         except HTTPError as e:
-            logger.debug(f'TVDB returned zero episodes. Error: {err_str(e)}')
+            logger.debug(f'TVDB returned zero episodes for "{series.get("seriesName")}" using season '
+                         f'{season} and episode {episode}. Error: {err_str(e)}')
 
-    def _get_episodes_from_episode_title(self, series: dict = None):
-        if series is None:
+    def _get_episodes_from_episode_title(self, series: dict = None, parts: MediaNameParse = None):
+        if series is None or parts is None:
             return
         ''' use free-text output from parser to match against episode titles '''
         fn_tokens = ''
-        for fn_part in ['episode_name', 'group', 'excess']:
-            detail = getattr(self.parts, fn_part, None)
+        for fn_part in ['title', 'episode_name', 'group', 'excess']:
+            token = getattr(parts, fn_part, None)
             ''' convert list to string '''
-            if isinstance(detail, list):
-                detail = ' '.join(detail)
-            if detail is None:
+            if isinstance(token, list):
+                token = ' '.join(token)
+            if not isinstance(token, str):
+                logger.error(
+                    f'Episode filename token is not a string: Name: {fn_part}. Type: {type(token)}. Token: {token}')
                 continue
-            fn_tokens = fn_tokens + ' ' + detail
+            fn_tokens = fn_tokens + ' ' + token
         fn_tokens = self._clean_and_tokenize(fn_tokens)
 
         if fn_tokens:
@@ -166,7 +206,10 @@ class TVDBQuery(DBQuery):
                 '''' then look for matches between filename (including numbers) and aired date '''
                 intersection.extend([value for value in fn_tokens if value in aired_date_tokens])
                 if intersection:
-                    logger.debug(f'Intersection: {intersection} Episode tokens: {episode_title_tokens} Episode name: {episode.get("episodeName")}')
+                    logger.debug(f'Found episode "{episode.get("episodeName")} for "{series.get("seriesName")}" '
+                                 f'using "{fn_tokens}"')
+                    logger.debug(
+                        f'Intersection: {intersection} Episode tokens: {episode_title_tokens} Episode name: {episode.get("episodeName")}')
                     episode['_fuzzy_score'] = len(intersection)
                     episode['_series'] = series
                     add_unique_elements(self.fuzzy_episode_matches, episode)
@@ -189,48 +232,47 @@ class TVDBQuery(DBQuery):
 class TMDBQuery(DBQuery):
     TMDB_API_KEY = ""  # override key in file
 
-    def __init__(self, parts: MediaNameParse = None):
+    def __init__(self):
         super().__init__()
-        self.parts = parts
         self.movie_list = list()
 
-    def query(self):
+    def query(self, parts: MediaNameParse = None):
         def desc(r):
-            return f'{[m.get("original_title") + " (" + m.get("release_date")[:4] + ")" for m in r.get("results")]}'
+            return f'{[m.get("original_title") + " (" + m.get("release_date")[:4] + ")" for m in results]}'
 
         tmdb.API_KEY = TMDBQuery.TMDB_API_KEY or config.TMDB_API_KEY
         logger.info('>>> Starting TMDB query...')
+        if not parts:
+            logger.error('Query aborted. MediaNameParse is None.')
+            return
 
-        if self.parts.movie_id:
+        if parts.movie_id:
             try:
-                logger.debug(f'Query for movie ID {self.parts.movie_id}...')
-                response = tmdb.Movies(self.parts.movie_id).info()
-                logger.debug(f'TMDB returned {len(response.get("results"))} movies: {desc(response)}')
+                results = tmdb.Movies(parts.movie_id).info().get("results")
+                logger.debug(f'TMDB returned {len(results)} movies for movie ID {parts.movie_id}: {desc(results)}')
             except HTTPError as e:
-                logger.debug(f'TMDB returned zero results. Error: {err_str(e)}')
+                logger.debug(f'TMDB returned zero results for movie ID {parts.movie_id}. Error: {err_str(e)}')
 
-        title = self.parts.title
-        year = self.parts.year
-        response = dict()
-        try:
-            logger.debug(f'Query for "{title}" and year "{year}"...')
-            response = tmdb.Search().movie(query=title, year=year)
-            logger.debug(f'TMDB returned {len(response.get("results"))} movies: {desc(response)}')
-        except HTTPError as e:
-            logger.debug(f'TMDB returned zero results. Error: {err_str(e)}')
-
-        if 'results' not in response:
+        results = dict()
+        if parts.title and parts.year:
             try:
-                logger.debug(f'Query for "{title}"...')
-                response = tmdb.Search().movie(query=title)
-                logger.debug(f'TMDB returned {len(response.get("results"))} movies: {desc(response)}')
+                results = tmdb.Search().movie(query=parts.title, year=parts.year).get('results')
+                logger.debug(
+                    f'TMDB returned {len(results)} movies for "{parts.title}" and year "{parts.year}": {desc(results)}')
             except HTTPError as e:
-                logger.debug(f'TMDB returned zero results. Error: {err_str(e)}')
+                logger.debug(
+                    f'TMDB returned zero results for "{parts.title}" and year "{parts.year}". Error: {err_str(e)}')
 
-        add_unique_elements(self.movie_list, response.get('results'))
+        if not results:
+            try:
+                results = tmdb.Search().movie(query=parts.title).get('results')
+                logger.debug(f'TMDB returned {len(results)} movies for "{parts.title}": {desc(results)}')
+            except HTTPError as e:
+                logger.debug(f'TMDB returned zero results for "{parts.title}". Error: {err_str(e)}')
 
+        add_unique_elements(self.movie_list, results)
         self.exact_matches = [QueryResult(data=movie, media_type=MediaType.MOVIE) for movie in self.movie_list]
 
-        logger.info(f'Found {len(self.movie_list)} matches.')
+        self.print_query_summary()
         logger.info('<<< Finished TMDB query')
         return self

@@ -85,6 +85,8 @@ class MediaName:
         self.series_id = None
         self.movie_id = None
 
+        self.fuzzy_match_score = -1
+
     def is_documentary(self):
         return 99 in getattr(self, 'genre_ids', set())
 
@@ -97,28 +99,31 @@ class MediaName:
     def __str__(self):
         if self.media_type is MediaType.SERIES:
             media_type_s = 'episode'
-            name = f'{self.title}'
+            name_s = f'{self.title}'
+            name_s += f' ({self.network})' if self.network else ''
             try:
-                season = int(self.season)
-                name += f' - s{season:02d}'
+                season_s = f'{int(self.season):02d}'
             except (ValueError, TypeError):
-                name += f' - s{self.season}'
+                season_s = self.season
             try:
-                episode = int(self.episode)
-                name += f'e{episode:02d}'
+                episode_s = f'{int(self.episode):02d}'
             except (ValueError, TypeError):
-                name += f'e{self.episode}'
-            name += f' - {self.episode_name}'
+                episode_s = self.episode
+            name_s += f' - S{season_s}E{episode_s}' if season_s else ''
+            name_s += f': {self.episode_name}' if self.episode_name else ''
         else:
             media_type_s = 'movie'
-            name = f'{self.title} ({self.year})'
+            name_s = f'{self.title}'
+            name_s += f' ({self.year})' if self.year else ''
 
         group = self.group if isinstance(self.group, (list, tuple)) else [self.group]
         excess = self.excess if isinstance(self.excess, (list, tuple)) else [self.excess]
         extra = ', '.join(x for x in (list(map(str, group)) + list(map(str, excess))) if x)
-        name += f' ({extra})' if extra else ''
+        name_s += f' ({extra})' if extra else ''
 
-        return f'({media_type_s.capitalize()}) {name}'
+        name_s += f' ({self.fuzzy_match_score})' if self.fuzzy_match_score != -1 else ''
+
+        return f'({media_type_s.capitalize()}) {name_s}'
 
 
 class MediaNameParse(MediaName):
@@ -141,7 +146,7 @@ class QueryResult(MediaName):
     def __init__(self, data: dict = None, media_type: MediaType = None):
         super().__init__(media_type)
 
-        self.fuzzy_match_score = data.get('_fuzzy_score')
+        self.fuzzy_match_score = data.get('_fuzzy_score', -1)
 
         if self.media_type is MediaType.MOVIE:
             self.title = data['title']

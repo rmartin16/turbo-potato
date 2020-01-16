@@ -33,11 +33,12 @@ class Torrents:
         return self._torrent_cache
 
     @staticmethod
-    def wrap_api_call(func, _hash=None, **kwargs):
+    def wrap_api_call(func, **kwargs):
+        torrent_hash = kwargs.get('hash') or kwargs.get('hashes')
         try:
             return func(**kwargs)
         except Exception as e:
-            logger.warning(f'qBittorrent communications error for "{_hash}". Function: {func}. kwargs: {kwargs}. Error: {e}',
+            logger.warning(f'qBittorrent communications error for "{torrent_hash}". Function: {func}. kwargs: {kwargs}. Error: {e}',
                            exc_info=True)
             return None
 
@@ -54,9 +55,10 @@ class Torrents:
                     return torrent
         return None
 
-    @staticmethod
     # def is_already_transiting(torrent: qbt_api.TorrentDictionary = None) -> bool:
-    def is_already_transiting(torrent=None) -> bool:
+    def is_transiting(self, torrent=None, torrent_hash: str = None) -> bool:
+        if torrent_hash:
+            torrent = self.get_torrent(torrent_hash=torrent_hash)
         if torrent and torrent.category.lower() == 'transiting':
             return True
         return False

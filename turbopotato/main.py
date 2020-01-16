@@ -1,5 +1,7 @@
 import logging
 
+from tvdbsimple.base import AuthenticationError
+
 from turbopotato.arguments import args
 from turbopotato.exceptions import NoMediaFiles
 from turbopotato.log import Log
@@ -16,7 +18,7 @@ def main():
     logs = Log()
     try:
         args.process_arguments()
-        media = Media(files=args.files, handle_torrents=args.torrents)
+        media = Media()
         media.set_transiting()
         media.parse_filenames()
         media.identify_media()
@@ -27,11 +29,15 @@ def main():
         logger.error(f'No media files to process. Aborting.')
     except qBittorrentError as e:
         logger.error(f'Error communicating with qBittorrent: {e}')
+    except AuthenticationError as e:
+        logger.error(f'Error communicating with theTVDB: {e}')
     except Exception as e:
         logger.error(f'Unhandled exception: {e}', exc_info=True)
+    except KeyboardInterrupt:
+        logger.info(f'KeyboardInterrupt. Exiting.')
     finally:
         if 'media' in locals():
-            media.unset_transiting()
+            media.update_torrents()
         logs.delete_logs()
 
 

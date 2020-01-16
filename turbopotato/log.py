@@ -1,16 +1,22 @@
 import logging.config
-from os import remove
+import os
 from pathlib import Path
 import tempfile
 
 from turbopotato.arguments import args
+from turbopotato.helpers import clean_path_part
 
 
 class Log:
     def __init__(self):
+        log_file_prefix = str(os.path.commonprefix(args.paths))
+        if log_file_prefix:
+            if Path(log_file_prefix).name:
+                log_file_prefix = Path(log_file_prefix).name
+            log_file_prefix = clean_path_part(log_file_prefix, replace=' ')
         tmp_dir = tempfile.gettempdir()
-        self.info_log = Path(tmp_dir, 'znp_log_info.log')
-        self.debug_log = Path(tmp_dir, 'znp_log_debug.log')
+        self.info_log = Path(tmp_dir, 'znp_logs', log_file_prefix + '_znp_log_info.log')
+        self.debug_log = Path(tmp_dir, 'znp_logs', log_file_prefix + '_znp_log_debug.log')
 
         console_level = args.log_level or "INFO"
 
@@ -62,6 +68,6 @@ class Log:
         logging.shutdown()
         for log in [self.info_log, self.debug_log]:
             try:
-                remove(log)
+                os.remove(log)
             except Exception as e:
                 print(f'Error deleting log file {log}: {e}')

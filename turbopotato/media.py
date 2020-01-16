@@ -1,8 +1,13 @@
+from collections import namedtuple
 from copy import copy
 import logging
+import os
 from pathlib import Path, PurePosixPath
 from typing import List, Union
 
+import PyInquirer
+
+from turbopotato.arguments import args
 from turbopotato.exceptions import NoMediaFiles
 from turbopotato.helpers import clean_path_part
 from turbopotato.helpers import MediaNameParse
@@ -24,11 +29,13 @@ COMEDY_PATH = MEDIA_ROOT / "Comedy"
 MOVIES_PATH = MEDIA_ROOT / "Movies"
 TV_SHOWS_PATH = MEDIA_ROOT / "TV Shows"
 
+FileGroup = namedtuple('FileGroup', 'success files name')
+
 
 class File:
     def __init__(self, filepath: Path = None):
         self.filepath = filepath
-        self.original_torrent_state = None
+        self.original_torrent = None
         self.torrent_hash = None
 
         self.success = False
@@ -101,6 +108,9 @@ class File:
 
     @property
     def destination_filename(self) -> Union[str, None]:
+        if not self.chosen_one:
+            return None
+
         if self.chosen_one.media_type is MediaType.MOVIE:
             return clean_path_part(self.filepath.name)
         else:
@@ -115,29 +125,31 @@ class File:
         return None
 
     def identify_media(self):
-        query_precedence = (TMDBQuery(parts=self.parts), TVDBQuery(parts=self.parts))
+        query_precedence = (TMDBQuery(), TVDBQuery())
 
         if self.parts.media_type is MediaType.SERIES:
             query_precedence = tuple(reversed(query_precedence))
 
-        self.query = query_precedence[0].query()
+        self.query = query_precedence[0].query(parts=self.parts)
         if not self.query.is_matches:
-            self.query = query_precedence[1].query()
-
-        for count, result in enumerate(self.query.exact_matches):
-            logger.info(f'{count} {result}')
+            self.query = query_precedence[1].query(parts=self.parts)
 
 
 class Media:
-    def __init__(self, files: set = None, handle_torrents: bool = False):
-        self.files: Union[List[File], None] = list(map(File, files)) if files else None
-        self.handle_torrents = handle_torrents
+    def __init__(self):
+        self.files: Union[List[File], None] = list(map(File, args.files)) if args.files else None
 
-        if self.handle_torrents:
+        if args.torrents:
             self._find_torrent_for_each_file()
 
         if not self.files:
             raise NoMediaFiles
+        else:
+            logger.debug('Files to process:')
+            for file_group in self.get_file_groups():
+                logger.debug(f' {file_group.name}')
+                for file in file_group.files:
+                    logger.debug(f'  {file.filepath.name}')
 
     def __iter__(self):
         return iter(self.files)
@@ -155,50 +167,116 @@ class Media:
                 logger.warning(f'Torrent not found. Skipping "{file.filepath}"')
                 continue
 
-            if torrents.is_already_transiting(torrent):
-                logger.warning(f'Torrent ({torrent.name}) is already transiting. Skipping "{file.filepath}".')
+            if torrents.is_transiting(torrent):
+                logger.warning(f'Torrent "({torrent.name})" is already transiting. Skipping "{file.filepath}"')
+                continue
+
+            if torrent.category == 'skip upload' and not args.interactive:
+                logger.warning(f'Torrent category is "{torrent.category}", Skipping "{file.filepath}"')
                 continue
 
             logger.debug(f'Using torrent "{torrent.name}" for "{file.filepath}"')
             file.torrent_hash = torrent.hash
-            file.original_torrent_state = torrent
+            file.original_torrent = torrent
             self.files.append(file)
 
-    def _unique_torrent_list(self):
-        return list({file.original_torrent_state.hash: file.original_torrent_state for file in self.files}.values())
+    def get_file_groups(self) -> List[FileGroup]:
+        file_groups = list()
+        if args.torrents:
+            for torrent_hash in set(f.torrent_hash for f in self.files):
+                files = [f for f in self.files if f.torrent_hash == torrent_hash]
+                file_groups.append(
+                    FileGroup(
+                        success=all(f.success for f in files),
+                        files=files,
+                        name=files[0].original_torrent.name
+                    )
+                )
+        else:
+            file_groups.append(
+                FileGroup(
+                    success=all(f.success for f in self.files),
+                    files=self.files,
+                    name=Path(os.path.commonprefix([str(f.filepath) for f in self.files])).name
+                )
+            )
+
+        return file_groups
 
     def set_transiting(self):
-        if self.handle_torrents:
-            for torrent in self._unique_torrent_list():
+        if args.torrents:
+            for torrent in list({file.original_torrent.hash: file.original_torrent for file in self.files}.values()):
                 logger.debug(f'Setting category to "transiting" for "{torrent.name}"')
                 torrents.wrap_api_call(func=torrents.qbt_client.torrents_set_category,
-                                       _hash=torrent.hash,
                                        hashes=torrent.hash,
                                        category='transiting')
 
-    def unset_transiting(self):
+    def update_torrents(self):
         """
+        follow rules to appropriately update category.
         if torrent is still marked transiting, restore back to original state.
         this is primarily to ensure torrents are not left in a transiting state when wrapping things up.
         """
-        if self.handle_torrents:
-            for torrent in self._unique_torrent_list():
-                if torrents.is_already_transiting(torrents.get_torrent(torrent_hash=torrent.hash)):
-                    logger.debug(f'Resetting category back to "{torrent.category}" for "{torrent.name}"')
+        torrents_root_dir = '/home/user/torrents/'
+        delete_categories = ('errored delete after upload', 'delete after upload')
+        skip_update_categories = ('skip update after upload',)
+
+        if args.torrents:
+            update_torrents = not args.skip_torrent_updates
+            if update_torrents and args.ask_for_torrent_updates:
+                update_torrents = PyInquirer.prompt(questions={'type': 'confirm',
+                                                               'name': 'update',
+                                                               'message': 'Update torrents?'}).get('update', False)
+            if update_torrents:
+                for file_group in self.get_file_groups():
+                    category = None
+                    location = None
+                    torrent = file_group.files[0].original_torrent
+                    if torrent.category not in skip_update_categories:
+                        if file_group.success:
+                            if args.force_torrent_deletion or torrent.category in delete_categories:
+                                logger.info(f'Deleting {torrent.name}')
+                                torrents.wrap_api_call(torrents.qbt_client.torrents_delete,
+                                                       delete_files=True,
+                                                       hashes=torrent.hash)
+                            else:
+                                category = 'uploaded'
+                                location = '1completed'
+                        elif torrent.category in delete_categories:
+                            category = 'errored delete after upload'
+                            location = '2errored'
+                        elif not torrent.category:
+                            category = 'errored'
+                            location = '2errored'
+                        if location:
+                            logger.info(f'Moving "{torrent.name}" to "{location}" directory')
+                            torrents.wrap_api_call(torrents.qbt_client.torrents_set_location,
+                                                   location=torrents_root_dir + location,
+                                                   hashes=torrent.hash)
+                        if category:
+                            logger.info(f'Setting category to "{category}" for "{torrent.name}"')
+                            torrents.wrap_api_call(torrents.qbt_client.torrents_set_category,
+                                                   category=category,
+                                                   hashes=torrent.hash)
+
+            # one last roll through to ensure torrents are not left as 'transiting'
+            for torrent in list({file.original_torrent.hash: file.original_torrent for file in self.files}.values()):
+                if torrents.is_transiting(torrent_hash=torrent.hash):
+                    logger.info(f'Resetting category back to "{torrent.category}" for "{torrent.name}"')
                     torrents.wrap_api_call(func=torrents.qbt_client.torrents_set_category,
-                                           _hash=torrent.hash,
                                            hashes=torrent.hash,
                                            category=torrent.category or '')
 
     def parse_filenames(self):
         for file in self.files:
-
             try:
                 file.parts = parse(filepath=file.filepath)
             except Exception as e:
                 file.failure_reason = f'Error during filename parsing: {e}'
                 logger.exception(f'Error during filename parsing. Filename: {file.filepath.name}. Error: {e}')
-            logger.debug(f'Parsed {file.filepath.name}: {file.parts.raw_parse}')
+            logger.debug(f'Parsed {file.filepath.name}: {file.parts}')
+            if file.parts.parent_parts:
+                logger.debug(f'Parsed parent {file.filepath.parent}: {file.parts.parent_parts}')
 
     def identify_media(self):
         for file in self.files:
@@ -209,11 +287,11 @@ class Media:
 
     def transit(self):
         for file in self.files:
-            if not file.chosen_one or file.skip:
-                continue
-
             logger.info(f'')
             logger.info(f'>>> Starting transit for {file.filepath.name}...')
+            if not file.chosen_one or file.skip:
+                logger.warning(f'Cannot transit. Chosen one: {file.chosen_one}. Skip file: {file.skip}.')
+                continue
 
             dest_dir = file.destination_directory
             dest_filename = file.destination_filename
@@ -225,6 +303,7 @@ class Media:
 
             try:
                 send_file(local_filepath=file.filepath, remote_filepath=dest_dir/dest_filename)
+                logger.info('File successfully transited')
                 file.success = True
             except Exception as e:
                 file.failure_reason = f'Failed to transmit file. Error: {e}'

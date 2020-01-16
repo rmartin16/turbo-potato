@@ -1,8 +1,5 @@
-from collections import namedtuple
 import logging
-import os
 from pathlib import Path
-from typing import List
 
 from turbopotato.arguments import args
 from turbopotato.config import config
@@ -10,37 +7,20 @@ from turbopotato.log import Log
 from turbopotato.media import Media
 
 logger = logging.getLogger(__name__)
-FileGroup = namedtuple('FileGroup', 'success files name')
 
 
 def notify(media: Media, logs: Log):
     if args.interactive:
         return
 
-    file_groups: List[FileGroup] = list()
-    if args.torrents:
-        for torrent_hash in set(f.torrent_hash for f in media):
-            files = [f for f in media if f.torrent_hash == torrent_hash]
-            file_groups.append(
-                FileGroup(
-                    success=all(f.success for f in files),
-                    files=files,
-                    name=files[0].original_torrent_state.name
-                )
-            )
-    else:
-        file_groups.append(
-            FileGroup(
-                success=all(f.success for f in media),
-                files=media.files,
-                name=Path(os.path.commonprefix([f.filepath for f in media])).name
-            )
-        )
+    file_groups = media.get_file_groups()
 
     for file_group in file_groups:
         if file_group.success:
             subject = f'Added Media Successfully ({file_group.name})'
         else:
+            if args.no_notification_on_failure:
+                continue
             subject = f'Adding Media Failed ({file_group.name})'
 
         log_to_send = ""
@@ -49,31 +29,34 @@ def notify(media: Media, logs: Log):
             try:
                 with open(log_filepath) as file:
                     log = file.read()
-            except (OSError, IOError):
-                logger.warning(f'log file not found for notification ({log_filepath})')
+            except (OSError, IOError) as e:
+                logger.warning(f'Could not read log file for notification ("{log_filepath}"). Error {e}')
             else:
                 log_to_send += "\n\r\n\r %s\n\r" % log_name
                 log_to_send += log
 
         summary = ''
         for file in file_group.files:
+            summary += f'<table>'
             if file.success:
-                summary += 'Media was added to your library'
-                summary = ""
-                summary += f'<table>'
+                summary += '<tr><td colspan="2"><b>Media was added to your library</b></td></tr>'
                 summary += f'<tr><td>Filename</td><td>{file.filepath.name}</td></tr>'
                 summary += f'<tr><td>Parsed File Information</td><td>{file.parts}</td></tr>'
                 summary += f'<tr><td>Identified Information</td><td>{file.chosen_one}</td></tr>'
                 summary += f'<tr><td>Destination Directory</td><td>{Path(file.destination_directory).parent}</td></tr>'
                 summary += f'<tr><td>Destination Filename</td><td>{file.destination_filename}</td></tr>'
-                summary += f'<tr></tr>'
-                summary += f'</table>'
             else:
-                pass
+                summary += '<tr><td colspan="2"><b>Failed to add media to your library<b></td></tr>'
+                summary += f'<tr><td>Filename</td><td>{file.filepath.name}</td></tr>'
+                summary += f'<tr><td>Parsed File Information</td><td>{file.parts}</td></tr>'
 
-            summary += '<br><br>Database Query Results'
-            for result in [file.query.exact_matches + file.query.fuzzy_matches_sorted]:
-                summary += f'<br>{type(result)}'
+            if file.query.exact_matches + file.query.fuzzy_matches_sorted:
+                summary += f'<tr><td></td><td></td></tr>'
+                summary += '<tr><td colspan="2">Database Query Results</td></tr>'
+                for result in file.query.exact_matches + file.query.fuzzy_matches_sorted:
+                    summary += f'<tr><td colspan="2">\t{result}</td></tr>'
+
+            summary += f'</table><br><br><br>'
 
         send_email(subject, summary, log_to_send)
 

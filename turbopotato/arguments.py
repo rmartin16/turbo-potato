@@ -38,6 +38,8 @@ class Arguments:
                                   help='don\'t update torrents (move/delete/update)')
         self._parser.add_argument('-l', '--log_level',
                                   action='store',
+                                  choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+                                  default='DEBUG',
                                   type=str,
                                   help='log level to display on console')
         self._parser.add_argument('--non_interactive', '--non-interactive',
@@ -75,10 +77,7 @@ class Arguments:
             else:
                 logger.warning(f'Invalid path argument: {path}')
 
-        if self.files:
-            logger.debug('Files to process:')
-            [logger.debug(f' {path}') for path in self.files]
-        else:
+        if not self.files:
             raise NoMediaFiles
 
         if self.torrents:
