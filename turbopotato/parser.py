@@ -4,8 +4,8 @@ from string import printable, digits
 
 import PTN
 
-from turbopotato.helpers import MediaNameParse
-from turbopotato.helpers import MediaType
+from turbopotato.media_defs import MediaNameParse
+from turbopotato.media_defs import MediaType
 
 logger = logging.getLogger(__name__)
 
@@ -13,30 +13,30 @@ logger = logging.getLogger(__name__)
 def parse(filepath: Path = None):
     ptn_results = PTN.parse(filepath.name)
 
-    # if a season wasn't parsed from the filename, see if the directory name contains a season number
-    found_season_in_dir_name = False
-    dir = filepath.parent.name
-    if dir and dir.lower().startswith('season'):
-        season_no = dir[6:].strip().rstrip(''.join(set(printable) - set(digits)))
-        try:
-            season_in_dir = int(season_no)
-        except ValueError:
-            pass
-        else:
-            found_season_in_dir_name = True
-            if not ptn_results.get('season'):
-                ptn_results['season'] = season_in_dir
+    # determine which parent directory should be considered the real parent
+    parent_path = filepath.parent
+    if parent_path:
+        # season is important because parsing out a season number means we're dealing with a series
+        if parent_path.name.lower().startswith('season'):
+            season_no = parent_path[6:].strip().rstrip(''.join(set(printable) - set(digits)))
+            try:
+                season_in_dir = int(season_no)
+            except ValueError:
+                pass
+            else:
+                parent_path = filepath.parent.parent
+                if not ptn_results.get('season'):
+                    ptn_results['season'] = season_in_dir
+        elif parent_path.name.lower() in ('subs', 'subtitles', 'subtitle'):
+            parent_path = filepath.parent.parent
 
     media_type = MediaType.SERIES if ptn_results.get('season') else MediaType.MOVIE
 
     # these parser results may be considered when querying the databases
     # if the filename alone didn't provide enough information
-    if found_season_in_dir_name:
-        # if the first directory had a season name, got up another level to maybe find a series name
-        parent_ptn_results = PTN.parse(filepath.parent.parent.name)
-    else:
-        # if the directory didn't contain a season number, then it probably contains a movie or show title
-        parent_ptn_results = PTN.parse(filepath.parent.name)
+    parent_ptn_results = {}
+    if parent_path:
+        parent_ptn_results = PTN.parse(parent_path.name)
 
     parts = MediaNameParse(media_type=media_type,
                            parent_parts=MediaNameParse(media_type=media_type, **parent_ptn_results),

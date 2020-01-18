@@ -9,10 +9,10 @@ import PyInquirer
 
 from turbopotato.arguments import args
 from turbopotato.exceptions import NoMediaFiles
-from turbopotato.helpers import clean_path_part
-from turbopotato.helpers import MediaNameParse
-from turbopotato.helpers import MediaType
-from turbopotato.helpers import QueryResult
+from turbopotato.media_defs import clean_path_part
+from turbopotato.media_defs import MediaNameParse
+from turbopotato.media_defs import MediaType
+from turbopotato.media_defs import QueryResult
 from turbopotato.parser import parse
 from turbopotato.query import DBQuery
 from turbopotato.query import TMDBQuery

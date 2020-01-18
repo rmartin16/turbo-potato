@@ -5,19 +5,19 @@ from nltk.tokenize import word_tokenize
 from multiprocessing.pool import ThreadPool
 from requests import HTTPError
 from string import punctuation
-from typing import List
+from typing import List, Tuple, Union
 
 import tvdbsimple as tvdb
 import tmdbsimple as tmdb
 
 from turbopotato.config import config
-from turbopotato.helpers import MediaNameParse
-from turbopotato.helpers import QueryResult
-from turbopotato.helpers import MediaType
+from turbopotato.media_defs import MediaNameParse
+from turbopotato.media_defs import QueryResult
+from turbopotato.media_defs import MediaType
 
 logger = logging.getLogger(__name__)
 MAX_THREADS = 30
-
+Q = '"'
 
 def err_str(e: Exception = None):
     return f'{getattr(e.response, "status_code", e)} ({type(e).__name__})'
@@ -47,6 +47,54 @@ class DBQuery:
         return sorted(self.fuzzy_matches,
                       key=lambda m: (m.fuzzy_match_score, m.season, m.episode),
                       reverse=True)
+
+    @staticmethod
+    def calculate_match_score(source: list, target: list, target_aired_date: str = ''):
+        def clean_and_tokenize(token_list) -> set:
+            if token_list == '':
+                return set()
+            token_list = token_list.lower()
+            token_list = token_list.replace('.', ' ')
+            # string = string.translate({ord(ch): None for ch in '0123456789'})
+            token_list = token_list.strip()
+            tokens = word_tokenize(token_list)
+            stop_words = set(stopwords.words('english'))
+            stop_words.update(punctuation)
+            tokens = set(w for w in tokens if w not in stop_words)
+            return tokens
+
+        def tokenize(input_list: Union[List[str], Tuple[str], str]) -> set:
+            tokens = ''
+            if isinstance(input_list, str):
+                input_list = [input_list]
+            assert isinstance(input_list, (List, Tuple))
+            for token in input_list:
+                ''' convert list to string '''
+                if isinstance(token, (list, tuple)):
+                    try:
+                        token = ' '.join(token)
+                    except TypeError:
+                        logger.error(f'Input token could not be joined as a string: {type(token)}. Token: {token}')
+                        continue
+                tokens = tokens + ' ' + token
+            return clean_and_tokenize(tokens)
+
+        source_tokens = tokenize(source)
+        target_tokens = tokenize(target)
+        aired_date_tokens = tokenize(target_aired_date.replace('-', ' '))
+
+        # only use numbers against the aired date
+        intersection = {v for v in source_tokens if v.isnumeric() is False} & target_tokens
+        intersection_aired_date = source_tokens & aired_date_tokens
+        score = len(intersection) + len(intersection_aired_date)
+
+        if score:
+            logger.debug(f'Score: {score} '
+                         f'Source tokens: {source_tokens} '
+                         f'Target tokens: {target_tokens} '
+                         f'{f"Aired date tokens: {aired_date_tokens} " if aired_date_tokens else ""}')
+
+        return score
 
     def print_query_summary(self):
         total_exact_matches = len(self.exact_matches)
@@ -128,8 +176,10 @@ class TVDBQuery(DBQuery):
         if self.series_list:
             return
 
+        parent_title = parent_parts.title if parent_parts else ''
+        parent_year = parent_parts.year if parent_parts else ''
         ''' search for series with title '''
-        for title, year in ((parts.title, parts.year), (parent_parts.title, parent_parts.year)):
+        for title, year in ((parts.title, parts.year), (parent_title, parent_year)):
             results = None
             if title and year:
                 try:
@@ -147,7 +197,7 @@ class TVDBQuery(DBQuery):
                     logger.debug(f'TVDB returned zero series\' using "{title}". Error: {err_str(e)}')
 
         for series in self.series_list:
-            if series.get('seriesName') in (parts.title, parts.parent_parts.title):
+            if series.get('seriesName').lower() in (parts.title.lower(), parent_title.lower()):
                 add_unique_elements(self.series_exact_match_list, series)
 
     def _get_episodes_from_season_and_episode_no(self, series: dict = None, parts: MediaNameParse = None):
@@ -155,7 +205,7 @@ class TVDBQuery(DBQuery):
             return
         season = parts.season
         episode = parts.episode
-        if series is None or season is '' or episode is '':
+        if series is None or season == '' or episode == '':
             return
 
         try:
@@ -172,22 +222,12 @@ class TVDBQuery(DBQuery):
         if series is None or parts is None:
             return
         ''' use free-text output from parser to match against episode titles '''
-        fn_tokens = ''
-        for fn_part in ['title', 'episode_name', 'group', 'excess']:
-            token = getattr(parts, fn_part, None)
-            ''' convert list to string '''
-            if isinstance(token, list):
-                token = ' '.join(token)
-            if not isinstance(token, str):
-                logger.error(
-                    f'Episode filename token is not a string: Name: {fn_part}. Type: {type(token)}. Token: {token}')
-                continue
-            fn_tokens = fn_tokens + ' ' + token
-        fn_tokens = self._clean_and_tokenize(fn_tokens)
+        parse_tokens = [parts.title, parts.episode_name, parts.group, parts.excess]
 
-        if fn_tokens:
+        if parse_tokens:
             logger.debug(f'Fuzzy matching against {series["seriesName"]}')
-            logger.debug(f'Search tokens: {fn_tokens}')
+            logger.debug(f'Search tokens: {parse_tokens}')
+
             all_episode_list = []
             try:
                 logger.debug(f'Querying for all episodes for {series.get("seriesName")}...')
@@ -197,36 +237,14 @@ class TVDBQuery(DBQuery):
                 logger.debug(f'TVDB returned zero episodes: Error: {err_str(e)}')
 
             for episode in (e for e in all_episode_list if e.get('episodeName')):
-                episode_title_tokens = self._clean_and_tokenize(episode.get('episodeName'))
-                aired_date_tokens = self._clean_and_tokenize(episode['firstAired'].replace('-', ' '))
-
-                ''' first find any intersection between filename and database episode title (skip numbers) '''
-                intersection = [value for value in fn_tokens if
-                                value in episode_title_tokens and value.replace('.', '', 1).isdigit() is False]
-                '''' then look for matches between filename (including numbers) and aired date '''
-                intersection.extend([value for value in fn_tokens if value in aired_date_tokens])
-                if intersection:
-                    logger.debug(f'Found episode "{episode.get("episodeName")} for "{series.get("seriesName")}" '
-                                 f'using "{fn_tokens}"')
-                    logger.debug(
-                        f'Intersection: {intersection} Episode tokens: {episode_title_tokens} Episode name: {episode.get("episodeName")}')
-                    episode['_fuzzy_score'] = len(intersection)
+                score = self.calculate_match_score(source=parse_tokens,
+                                                   target=episode.get('episodeName', ''),
+                                                   target_aired_date=episode.get('firstAired', ''))
+                if score > 0:
+                    logger.debug(f'Found episode "{episode.get("episodeName")} for "{series.get("seriesName")}')
+                    episode['_fuzzy_score'] = score
                     episode['_series'] = series
                     add_unique_elements(self.fuzzy_episode_matches, episode)
-
-    @staticmethod
-    def _clean_and_tokenize(token_list):
-        if token_list == '':
-            return []
-        token_list = token_list.lower()
-        token_list = token_list.replace('.', ' ')
-        # string = string.translate({ord(ch): None for ch in '0123456789'})
-        token_list = token_list.strip()
-        tokens = word_tokenize(token_list)
-        stop_words = set(stopwords.words('english'))
-        stop_words.update(punctuation)
-        token_list = list(set(w for w in tokens if w not in stop_words))
-        return token_list
 
 
 class TMDBQuery(DBQuery):
@@ -234,45 +252,67 @@ class TMDBQuery(DBQuery):
 
     def __init__(self):
         super().__init__()
-        self.movie_list = list()
+        self.exact_movie_list = list()
+        self.fuzzy_movie_list = list()
 
     def query(self, parts: MediaNameParse = None):
-        def desc(r):
-            return f'{[m.get("original_title") + " (" + m.get("release_date")[:4] + ")" for m in results]}'
-
         tmdb.API_KEY = TMDBQuery.TMDB_API_KEY or config.TMDB_API_KEY
         logger.info('>>> Starting TMDB query...')
         if not parts:
             logger.error('Query aborted. MediaNameParse is None.')
             return
 
-        if parts.movie_id:
-            try:
-                results = tmdb.Movies(parts.movie_id).info().get("results")
-                logger.debug(f'TMDB returned {len(results)} movies for movie ID {parts.movie_id}: {desc(results)}')
-            except HTTPError as e:
-                logger.debug(f'TMDB returned zero results for movie ID {parts.movie_id}. Error: {err_str(e)}')
-
-        results = dict()
-        if parts.title and parts.year:
-            try:
-                results = tmdb.Search().movie(query=parts.title, year=parts.year).get('results')
-                logger.debug(
-                    f'TMDB returned {len(results)} movies for "{parts.title}" and year "{parts.year}": {desc(results)}')
-            except HTTPError as e:
-                logger.debug(
-                    f'TMDB returned zero results for "{parts.title}" and year "{parts.year}". Error: {err_str(e)}')
-
-        if not results:
-            try:
-                results = tmdb.Search().movie(query=parts.title).get('results')
-                logger.debug(f'TMDB returned {len(results)} movies for "{parts.title}": {desc(results)}')
-            except HTTPError as e:
-                logger.debug(f'TMDB returned zero results for "{parts.title}". Error: {err_str(e)}')
-
-        add_unique_elements(self.movie_list, results)
-        self.exact_matches = [QueryResult(data=movie, media_type=MediaType.MOVIE) for movie in self.movie_list]
+        self._get_movies(parts=parts)
 
         self.print_query_summary()
         logger.info('<<< Finished TMDB query')
         return self
+
+    def _get_movies(self, parts: MediaNameParse):
+        def desc(r):
+            return f'{[m.get("original_title") + " (" + m.get("release_date")[:4] + ")" for m in r]}'
+
+        results = list()
+        if parts.movie_id:
+            try:
+                results = tmdb.Movies(parts.movie_id).info().get("results")
+            except HTTPError as e:
+                logger.debug(f'Error: {err_str(e)}')
+            logger.debug(f'TMDB returned {len(results)} movies for movie ID {parts.movie_id}: {desc(results)}')
+
+        if results:
+            return results
+
+        search_terms = [(parts.title, parts.year)]
+        if parts.parent_parts and parts.parent_parts.title:
+            search_terms.append((parts.parent_parts.title, parts.parent_parts.year))
+        for title, year in search_terms:
+            if title and year:
+                try:
+                    results = tmdb.Search().movie(query=title, year=year).get('results')
+                except HTTPError as e:
+                    logger.debug(f'Error: {err_str(e)}')
+
+            if not results:
+                try:
+                    results = tmdb.Search().movie(query=title).get('results')
+                except HTTPError as e:
+                    logger.debug(f'Error: {err_str(e)}')
+
+            if results:
+                for movie in results:
+                    if title.lower() == movie['title'].lower().translate(str.maketrans('', '', punctuation)):
+                        logger.debug(f'Found exact match for "{title}{f" ({year}){Q}" if year else f"{Q}"}.')
+                        add_unique_elements(self.exact_movie_list, movie)
+                    else:
+                        score = self.calculate_match_score(source=title, target=movie['title'])
+                        if score:
+                            logger.debug(f'Found fuzzy match for "{title}": {movie["title"]}')
+                            add_unique_elements(self.fuzzy_movie_list, movie)
+                if self.exact_movie_list:
+                    break
+            else:
+                logger.debug(f'TMDB returned zero results for "{title}{f" ({year}){Q}" if year else f"{Q}"}.')
+
+        self.exact_matches = [QueryResult(data=movie, media_type=MediaType.MOVIE) for movie in self.exact_movie_list]
+        self.fuzzy_matches = [QueryResult(data=movie, media_type=MediaType.MOVIE) for movie in self.fuzzy_movie_list]

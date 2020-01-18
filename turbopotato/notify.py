@@ -43,7 +43,7 @@ def notify(media: Media, logs: Log):
                 summary += f'<tr><td>Filename</td><td>{file.filepath.name}</td></tr>'
                 summary += f'<tr><td>Parsed File Information</td><td>{file.parts}</td></tr>'
                 summary += f'<tr><td>Identified Information</td><td>{file.chosen_one}</td></tr>'
-                summary += f'<tr><td>Destination Directory</td><td>{Path(file.destination_directory).parent}</td></tr>'
+                summary += f'<tr><td>Destination Directory</td><td>{file.destination_directory}</td></tr>'
                 summary += f'<tr><td>Destination Filename</td><td>{file.destination_filename}</td></tr>'
             else:
                 summary += '<tr><td colspan="2"><b>Failed to add media to your library<b></td></tr>'

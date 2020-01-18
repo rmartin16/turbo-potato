@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 
 from turbopotato.arguments import args
-from turbopotato.helpers import clean_path_part
+from turbopotato.media_defs import clean_path_part
 
 
 class Log:
@@ -13,10 +13,19 @@ class Log:
         if log_file_prefix:
             if Path(log_file_prefix).name:
                 log_file_prefix = Path(log_file_prefix).name
-            log_file_prefix = clean_path_part(log_file_prefix, replace=' ')
-        tmp_dir = tempfile.gettempdir()
-        self.info_log = Path(tmp_dir, 'znp_logs', log_file_prefix + '_znp_log_info.log')
-        self.debug_log = Path(tmp_dir, 'znp_logs', log_file_prefix + '_znp_log_debug.log')
+            log_file_prefix = clean_path_part(log_file_prefix + '_', replace=' ')
+
+        base_dir = Path(tempfile.gettempdir(), 'znp_logs')
+        info_filename = log_file_prefix + '_znp_log_info.log'
+        debug_filename = log_file_prefix + '_znp_log_debug.log'
+        for i in range(1, 500):
+            self.info_log = Path(base_dir, info_filename)
+            self.debug_log = Path(base_dir, debug_filename)
+            if self.info_log.is_file() or self.debug_log.is_file():
+                info_filename = log_file_prefix + '_znp_log_info.log' + f'.{i}'
+                debug_filename = log_file_prefix + '_znp_log_debug.log' + f'.{i}'
+            else:
+                break
 
         console_level = args.log_level or "INFO"
 

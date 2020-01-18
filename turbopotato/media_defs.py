@@ -75,7 +75,6 @@ class MediaName:
         self.id = ''
         self.aliases = ''
         self.genre_ids = set()
-        self.series_id = ''
         self.network = ''
         self.status = ''
         self.first_aired = ''
@@ -156,6 +155,7 @@ class QueryResult(MediaName):
         elif self.media_type is MediaType.SERIES:
             series = data['_series']
             self.title = series['seriesName']
+            self.series_id = series['id']
             self.episode = data['airedEpisodeNumber']
             self.season = data['airedSeason']
             self.episode_name = data['episodeName']

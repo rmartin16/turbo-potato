@@ -25,7 +25,7 @@ def main():
         prompt(media=media)
         media.transit()
         notify(media=media, logs=logs)
-    except NoMediaFiles as e:
+    except NoMediaFiles:
         logger.error(f'No media files to process. Aborting.')
     except qBittorrentError as e:
         logger.error(f'Error communicating with qBittorrent: {e}')

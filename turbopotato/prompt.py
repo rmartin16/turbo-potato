@@ -4,8 +4,8 @@ from typing import Union, List
 import PyInquirer
 
 from turbopotato.arguments import args
-from turbopotato.helpers import MediaType
-from turbopotato.helpers import MediaName, MediaNameParse, QueryResult
+from turbopotato.media_defs import MediaType
+from turbopotato.media_defs import MediaName, MediaNameParse, QueryResult
 from turbopotato.media import File
 from turbopotato.media import Media
 from turbopotato.query import TVDBQuery
@@ -34,7 +34,7 @@ def prompt(media: Media):
     if not args.interactive:
         return
 
-    prempt_series_for_file_groups(media=media)
+    preempt_series_for_file_groups(media=media)
 
     try:
         for file in media:
@@ -46,43 +46,71 @@ def prompt(media: Media):
             file.failure_reason = 'Processing was aborted by user.'
 
 
-def prempt_series_for_file_groups(media: Media):
+def preempt_series_for_file_groups(media: Media):
     for fg in media.get_file_groups():
-        files_wo_chosen_one: List[File] = [file for file in fg.files if not file.chosen_one]
+        files_w_series_matches: List[File] = [
+            file for file in fg.files
+            if file.parts.media_type == MediaType.SERIES
+               or any(match.media_type == MediaType.SERIES for match in file.query.exact_matches)
+               or any(match.media_type == MediaType.SERIES for match in file.query.fuzzy_matches)
+        ]
+        files_wo_chosen_one: List[File] = [file for file in files_w_series_matches if not file.chosen_one]
 
         if not files_wo_chosen_one:
             continue
 
+        series_id = None
         print('')
         print(f'{fg.name}')
         for file in files_wo_chosen_one:
             print(f' {file.parts}')
-        title = PyInquirer.prompt(questions={'type': 'input',
-                                             'name': 'title',
-                                             'message': 'Enter a series title for the group'}
-                                  ).get('title')
-        if title:
-            series_id = None
-            series_list = TVDBQuery().query_for_series(title=title)
-            if len(series_list) > 1:
-                choices = [
-                    dict(name=f'{s["seriesName"]} ({s["network"]})',
-                         value=s['id'])
-                    for s in series_list
-                ]
-                series_id = PyInquirer.prompt(questions={'type': 'list',
-                                                         'name': 'series',
-                                                         'message': 'Choose a series',
-                                                         'choices': choices}
-                                              ).get('series')
-            elif len(series_list) == 1:
-                series_id = series_list[0]['id']
+
+            series = dict()
+            if file.parts.series_id and file.parts.title:
+                series.update({file.parts.series_id: f'{file.parts.title} ({file.parts.network})'})
+            series.update({r.series_id: f'{r.title} ({r.network})' for r in file.query.exact_matches})
+            series.update({r.series_id: f'{r.title} ({r.network})' for r in file.query.fuzzy_matches})
+
+            print(series)
+            choices = [dict(name=v, value=k) for k, v in series.items()]
+            choices.insert(0, dict(name='<NONE>', value=None))
+            series_id = PyInquirer.prompt(questions={'type': 'list',
+                                                     'name': 'series',
+                                                     'message': 'Choose a series',
+                                                     'choices': choices}
+                                          ).get('series')
+        if not series_id:
+            print('')
+            print(f'{fg.name}')
             for file in files_wo_chosen_one:
-                if series_id:
-                    file.parts.series_id = series_id
-                else:
-                    file.parts.title = title
-                file.identify_media()
+                print(f' {file.parts}')
+            title = PyInquirer.prompt(questions={'type': 'input',
+                                                 'name': 'title',
+                                                 'message': 'Enter a series title for the group'}
+                                      ).get('title')
+            if title:
+                series_id = None
+                series_list = TVDBQuery().query_for_series(title=title)
+                if len(series_list) > 1:
+                    choices = [
+                        dict(name=f'{s["seriesName"]} ({s["network"]})',
+                             value=s['id'])
+                        for s in series_list
+                    ]
+                    series_id = PyInquirer.prompt(questions={'type': 'list',
+                                                             'name': 'series',
+                                                             'message': 'Choose a series',
+                                                             'choices': choices}
+                                                  ).get('series')
+                elif len(series_list) == 1:
+                    series_id = series_list[0]['id']
+
+        for file in files_wo_chosen_one:
+            if series_id:
+                file.parts.series_id = series_id
+            else:
+                file.parts.title = title
+            file.identify_media()
 
 
 def choose_match(file: File) -> bool:
