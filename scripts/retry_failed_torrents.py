@@ -1,16 +1,16 @@
 #!/home/user/python/media_transport/venv/bin/python
-
-import qbittorrentapi
-import subprocess
-import shlex
+import json
 from pathlib import Path
+import shlex
+import subprocess
+
+from qbittorrentapi import Client
 
 
 try:
-    qbt_client = qbittorrentapi.Client(VERIFY_WEBUI_CERTIFICATE=False,
-                                       host='localhost:8080',
-                                       username='admin',
-                                       password='adminadmin')
+    with open(Path(__file__).parent / 'qbittorrent_config.txt') as file:
+        qbt_config = json.load(file)
+    qbt_client = Client(**qbt_config)
 
     for torrent in qbt_client.torrents.info(category='errored'):
         try:

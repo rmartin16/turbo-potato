@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 MAX_THREADS = 30
 Q = '"'
 
+
 def err_str(e: Exception = None):
     return f'{getattr(e.response, "status_code", e)} ({type(e).__name__})'
 
@@ -86,7 +87,7 @@ class DBQuery:
         # only use numbers against the aired date
         intersection = {v for v in source_tokens if v.isnumeric() is False} & target_tokens
         intersection_aired_date = source_tokens & aired_date_tokens
-        score = len(intersection) + len(intersection_aired_date)
+        score = len(intersection) + (len(intersection_aired_date) if len(intersection_aired_date) > 1 else 0)
 
         if score:
             logger.debug(f'Score: {score} '

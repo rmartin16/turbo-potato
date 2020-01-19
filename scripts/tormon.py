@@ -1,9 +1,11 @@
 import urwid
 import os
+import json
 from pathlib import Path
 from tempfile import gettempdir
 from operator import itemgetter
 from subprocess import run, PIPE, STDOUT
+
 from qbittorrentapi import Client
 from qbittorrentapi import APIError
 
@@ -23,7 +25,9 @@ def quit_tormon(*args, **kwargs):
 class Tormon(object):
     def __init__(self):
         super().__init__()
-        self.qbt_client = Client(VERIFY_WEBUI_CERTIFICATE=False)  # host='http://localhost:8080', username='test', password='testtest', VERIFY_WEBUI_CERTIFICATE=False)
+        with open(Path(__file__).parent / 'qbittorrent_config.txt') as file:
+            qbt_config = json.load(file)
+        self.qbt_client = Client(**qbt_config)
         self.log_path = Path(gettempdir()) / 'znp_logs/'
 
         self.free_space_w = urwid.Filler(urwid.Text(''))

@@ -27,7 +27,7 @@ class Log:
             else:
                 break
 
-        console_level = args.log_level or "INFO"
+        console_level = args.log_level or 'INFO'
 
         logging_config = {
             'version': 1,

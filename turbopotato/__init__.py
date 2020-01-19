@@ -1,0 +1,1 @@
+from turbopotato.main import run

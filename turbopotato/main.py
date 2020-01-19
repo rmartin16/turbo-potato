@@ -1,4 +1,5 @@
 import logging
+from typing import Union, List, Tuple, AnyStr
 
 from tvdbsimple.base import AuthenticationError
 
@@ -13,8 +14,8 @@ from turbopotato.torrents import qBittorrentError
 logger = logging.getLogger(__name__)
 
 
-def main():
-    args.ingest_arguments()
+def main(args_override: list = None):
+    args.ingest_arguments(args_override=args_override)
     logs = Log()
     try:
         args.process_arguments()
@@ -39,6 +40,34 @@ def main():
         if 'media' in locals():
             media.update_torrents()
         logs.delete_logs()
+
+
+def run(paths: Union[List, Tuple, AnyStr] = None, torrents: bool = False, force_torrent_deletion: bool = False,
+        ask_for_torrent_update: bool = False, skip_torrent_updates: bool = False, log_level: str = 'DEBUG',
+        interactive: bool = True, no_notification_on_failure: bool = False):
+    args_override = list()
+    if torrents:
+        args_override.append('--torrents')
+    if force_torrent_deletion:
+        args_override.append('--force-torrent-deletion')
+    if ask_for_torrent_update:
+        args_override.append('--ask-for-torrent-updates')
+    if skip_torrent_updates:
+        args_override.append('--skip-torrent-updates')
+    if log_level:
+        args_override.append('--log_level')
+        args_override.append(log_level)
+    if not interactive:
+        args_override.append('--non-interactive')
+    if no_notification_on_failure:
+        args_override.append('--no-notification-on-failure')
+    if paths:
+        if isinstance(paths, (list, tuple)):
+            args_override.extend(paths)
+        else:
+            args_override.append(paths)
+
+    main(args_override=args_override or None)
 
 
 if __name__ == '__main__':

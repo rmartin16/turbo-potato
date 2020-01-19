@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
+import json
+from pathlib import Path
 
 from qbittorrentapi import Client
 from qbittorrentapi import APIError
 from time import time
 
 try:
-    qbt_client = Client(VERIFY_WEBUI_CERTIFICATE=False,
-                        host='localhost:8080',
-                        username='admin',
-                        password='adminadmin')
+    with open(Path(__file__).parent / 'qbittorrent_config.txt') as file:
+        qbt_config = json.load(file)
+    qbt_client = Client(**qbt_config)
 
     # for each torrent marked as uploaded
     for torrent in qbt_client.torrents.info(category='uploaded'):

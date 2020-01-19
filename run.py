@@ -1,3 +1,3 @@
-from turbopotato.main import main
+from turbopotato import run
 
-main()
+run()
