@@ -43,7 +43,7 @@ def main(args_override: list = None):
 
 
 def run(paths: Union[List, Tuple, AnyStr] = None, torrents: bool = False, force_torrent_deletion: bool = False,
-        ask_for_torrent_update: bool = False, skip_torrent_updates: bool = False, log_level: str = 'DEBUG',
+        ask_for_torrent_update: bool = False, skip_torrent_updates: bool = False, log_level: str = None,
         interactive: bool = True, no_notification_on_failure: bool = False):
     args_override = list()
     if torrents:

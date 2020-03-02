@@ -51,3 +51,5 @@ def parse_tweak(parts: MediaNameParse = None):
 
     if 'the daily show' in parts.title:
         parts.series_id = 71256
+    elif 'the magicians us' in parts.title:
+        parts.series_id = 299139

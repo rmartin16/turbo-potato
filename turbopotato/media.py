@@ -63,10 +63,11 @@ class File:
         if self.query and len(self.query.exact_matches) == 1:
             self._chosen_one = self.query.exact_matches[0]
 
-        max_score_list = [r for r in self.query.fuzzy_matches
-                          if r.fuzzy_match_score == max([r.fuzzy_match_score for r in self.query.fuzzy_matches])]
-        if len(max_score_list) == 1:
-            self._chosen_one = max_score_list[0]
+        if self._chosen_one is None:
+            max_score_list = [r for r in self.query.fuzzy_matches
+                              if r.fuzzy_match_score == max([r.fuzzy_match_score for r in self.query.fuzzy_matches])]
+            if len(max_score_list) == 1:
+                self._chosen_one = max_score_list[0]
 
         return self._chosen_one
 

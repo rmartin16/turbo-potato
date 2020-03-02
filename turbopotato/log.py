@@ -16,6 +16,8 @@ class Log:
             log_file_prefix = clean_path_part(log_file_prefix + '_', replace=' ')
 
         base_dir = Path(tempfile.gettempdir(), 'znp_logs')
+        if not base_dir.is_dir():
+            os.mkdir(base_dir)
         info_filename = log_file_prefix + '_znp_log_info.log'
         debug_filename = log_file_prefix + '_znp_log_debug.log'
         for i in range(1, 500):
