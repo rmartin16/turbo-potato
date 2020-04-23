@@ -151,14 +151,14 @@ class QueryResult(MediaName):
             self.title = data['title']
             self.genre_ids = set(data.get('genre_ids') or set())
             self.genre_ids.update([gid for gid in data.get('genres', [])])
-            self.year = data['release_date'][:4]
+            self.year = data.get('release_date', '')[:4]
         elif self.media_type is MediaType.SERIES:
-            series = data['_series']
-            self.title = series['seriesName']
-            self.series_id = series['id']
-            self.episode = data['airedEpisodeNumber']
-            self.season = data['airedSeason']
-            self.episode_name = data['episodeName']
+            series = data.get('_series', '')
+            self.title = series.get('seriesName', '')
+            self.series_id = series.get('id', '')
+            self.episode = data.get('airedEpisodeNumber', '')
+            self.season = data.get('airedSeason', '')
+            self.episode_name = data.get('episodeName', '')
             self.first_aired = data.get('firstAired')
             self.network = series.get('network')
             self.aliases = series.get('aliases')

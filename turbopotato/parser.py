@@ -18,7 +18,7 @@ def parse(filepath: Path = None):
     if parent_path:
         # season is important because parsing out a season number means we're dealing with a series
         if parent_path.name.lower().startswith('season'):
-            season_no = parent_path[6:].strip().rstrip(''.join(set(printable) - set(digits)))
+            season_no = parent_path.name[6:].strip().rstrip(''.join(set(printable) - set(digits)))
             try:
                 season_in_dir = int(season_no)
             except ValueError:
@@ -49,7 +49,9 @@ def parse_tweak(parts: MediaNameParse = None):
     if parts is None:
         return
 
-    if 'the daily show' in parts.title:
+    if 'the daily show' in parts.title.lower():
         parts.series_id = 71256
-    elif 'the magicians us' in parts.title:
+    elif 'the magicians us' in parts.title.lower():
         parts.series_id = 299139
+    elif 'the outsider' in parts.title.lower():
+        parts.series_id = 365480

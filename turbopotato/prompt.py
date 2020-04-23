@@ -54,7 +54,8 @@ def preempt_series_for_file_groups(media: Media):
                or any(match.media_type == MediaType.SERIES for match in file.query.exact_matches)
                or any(match.media_type == MediaType.SERIES for match in file.query.fuzzy_matches)
         ]
-        files_wo_chosen_one: List[File] = [file for file in files_w_series_matches if not file.chosen_one]
+        # files_wo_chosen_one: List[File] = [file for file in files_w_series_matches if not file.chosen_one]
+        files_wo_chosen_one: List[File] = list(filter(lambda f: not f.chosen_one, files_w_series_matches))
 
         if not files_wo_chosen_one:
             continue
@@ -246,21 +247,20 @@ def prompt_new_media_information(file: File,
         )
     ]
     answers = PyInquirer.prompt(questions)
-    media_type = answers.pop('type')
+    media_type = MediaType.SERIES if answers.pop('type') else MediaType.MOVIE
     is_query_again = bool(answers.pop('is_query_again'))
     is_documentary = answers.pop('is_documentary')
     is_comedy = answers.pop('is_comedy')
 
     if is_query_again:
-        return is_query_again, MediaNameParse(media_type=MediaType.MOVIE if media_type == 'Movie' else MediaType.SERIES,
-                                              **answers)
+        return is_query_again, MediaNameParse(media_type=media_type, **answers)
     else:
         genre_ids = set()
         if is_documentary:
             genre_ids.add(99)
         if is_comedy:
             genre_ids.add(35)
-        return is_query_again, QueryResult(media_type=MediaType.MOVIE if media_type == 'Movie' else MediaType.SERIES,
+        return is_query_again, QueryResult(media_type=media_type,
                                            data=dict(
                                                title=answers.get('title'),
                                                genre_ids=genre_ids,
@@ -268,8 +268,8 @@ def prompt_new_media_information(file: File,
                                                _series=dict(seriesName=answers.get('title')),
                                                airedEpisodeNumber=answers.get('episode'),
                                                airedSeason=answers.get('season'),
-                                               episodeName=answers.get('episodeName')
-                                           ))
+                                               episodeName=answers.get('episodeName'))
+                                           )
 
 
 def prompt_list_of_matches(file: File, match_type: str, choices: list):
