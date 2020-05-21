@@ -1,11 +1,14 @@
 language: python
 python:
-  - 2.7
-  - 3.4
-  - 3.5
-  - 3.6
-  - 3.7
   - 3.8
+env:
+  - TP_QBITTORRENT_CONFIG_HOST="localhost"
+  - TP_QBITTORRENT_CONFIG_PORT="8080"
+  - TP_QBITTORRENT_CONFIG_USERNAME="admin"
+  - TP_QBITTORRENT_CONFIG_PASSWORD="adminadmin"
+  - TP_TVDB_API_KEY="0000"
+  - TP_TMDB_API_KEY="1111"
+  - TP_GMAIL_APP_PASSWORD="2222"
 before_install:
   - python --version
   - pip install -U pip

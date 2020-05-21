@@ -1,3 +1,4 @@
+from os import environ
 from pkg_resources import resource_filename
 from pathlib import Path
 
@@ -14,14 +15,26 @@ def get_line(file: Path, line: int = 1):
 
 
 class Config:
-    qbittorrent_host = get_line(Path(resource_filename(__name__, 'QBITTORRENT_CONFIG')), 1)[len('HOST:'):]
-    qbittorrent_port = get_line(Path(resource_filename(__name__, 'QBITTORRENT_CONFIG')), 2)[len('PORT:'):]
-    qbittorrent_username = get_line(Path(resource_filename(__name__, 'QBITTORRENT_CONFIG')), 3)[len('USERNAME:'):]
-    qbittorrent_password = get_line(Path(resource_filename(__name__, 'QBITTORRENT_CONFIG')), 4)[len('PASSWORD:'):]
+    host = environ.get('TP_QBITTORRENT_CONFIG_HOST')
+    qbittorrent_host = host or get_line(Path(resource_filename(__name__, 'QBITTORRENT_CONFIG')), 1)[len('HOST:'):]
 
-    TVDB_API_KEY = get_line(Path(resource_filename(__name__, 'TVDB_API_KEY')))
-    TMDB_API_KEY = get_line(Path(resource_filename(__name__, 'TMDB_API_KEY')))
-    GMAIL_APP_PASSWORD = get_line(Path(resource_filename(__name__, 'GMAIL_APP_PASSWORD')))
+    port = environ.get('TP_QBITTORRENT_CONFIG_PORT')
+    qbittorrent_port = port or get_line(Path(resource_filename(__name__, 'QBITTORRENT_CONFIG')), 2)[len('PORT:'):]
+
+    username = environ.get('TP_QBITTORRENT_CONFIG_USERNAME')
+    qbittorrent_username = username or get_line(Path(resource_filename(__name__, 'QBITTORRENT_CONFIG')), 3)[len('USERNAME:'):]
+
+    password = environ.get('TP_QBITTORRENT_CONFIG_PASSWORD')
+    qbittorrent_password = password or get_line(Path(resource_filename(__name__, 'QBITTORRENT_CONFIG')), 4)[len('PASSWORD:'):]
+
+    tvdb_key = environ.get('TP_TVDB_API_KEY')
+    TVDB_API_KEY = tvdb_key or get_line(Path(resource_filename(__name__, 'TVDB_API_KEY')))
+
+    tmdb_key = environ.get('TP_TMDB_API_KEY')
+    TMDB_API_KEY = tmdb_key or get_line(Path(resource_filename(__name__, 'TMDB_API_KEY')))
+
+    gmail_password = environ.get('TP_GMAIL_APP_PASSWORD')
+    GMAIL_APP_PASSWORD = gmail_password or get_line(Path(resource_filename(__name__, 'GMAIL_APP_PASSWORD')))
 
 
 config = Config()
