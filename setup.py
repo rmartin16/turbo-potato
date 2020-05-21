@@ -7,7 +7,7 @@ setup(
     include_package_data=True,
     install_requires=['unidecode',
                       'PyInquirer',
-                      'git+git://github.com/divijbindlish/parse-torrent-name.git@PTN',
+                      'parse-torrent-name@git+git://github.com/divijbindlish/parse-torrent-name.git',
                       'requests',
                       'tvdbsimple',
                       'tmdbsimple',
