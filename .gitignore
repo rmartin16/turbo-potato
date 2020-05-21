@@ -4,6 +4,7 @@ QBITTORRENT_CONFIG
 TMDB_API_KEY
 TVDB_API_KEY
 .idea
+scripts/qbittorrent_config.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
