@@ -14,3 +14,4 @@ install:
 script: pytest
 after_success:
   - codecov
+  - coveralls
