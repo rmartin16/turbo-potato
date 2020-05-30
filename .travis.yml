@@ -9,7 +9,7 @@ before_install:
   - pip install -U pytest
   - pip install -U pytest-cov
   - pip install codecov
-  - pip install python-coveralls
+  - pip install coveralls
 install:
   - pip install .
 script: pytest
