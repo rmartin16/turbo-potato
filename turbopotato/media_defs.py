@@ -57,6 +57,7 @@ class MediaName:
         self.audio = ''
         self.codec = ''
         self.container = ''
+        self.encoder = ''
         self.excess = ''
         self.extended = ''
         self.garbage = ''

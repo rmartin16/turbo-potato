@@ -302,7 +302,9 @@ class TMDBQuery(DBQuery):
 
             if results:
                 for movie in results:
-                    if title.lower() == movie['title'].lower().translate(str.maketrans('', '', punctuation)):
+                    is_title_match = title.lower() == movie.get('title').lower().translate(str.maketrans('', '', punctuation))
+                    is_year_match = str(year) == (movie.get('release_date') or '1111')[:4]
+                    if is_title_match and is_year_match:
                         logger.debug(f'Found exact match for "{title}{f" ({year}){Q}" if year else f"{Q}"}.')
                         add_unique_elements(self.exact_movie_list, movie)
                     else:
