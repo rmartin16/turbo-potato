@@ -6,7 +6,7 @@ from turbopotato.config import config
 from turbopotato.log import Log
 from turbopotato.media import Media
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('notify')
 
 
 def notify(media: Media, logs: Log):

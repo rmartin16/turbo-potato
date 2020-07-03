@@ -11,7 +11,7 @@ from turbopotato.notify import notify
 from turbopotato.prompt import prompt
 from turbopotato.torrents import qBittorrentError
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('main')
 
 
 def main(args_override: list = None):

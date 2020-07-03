@@ -2,7 +2,7 @@ import logging
 import shlex
 import subprocess
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('transit')
 
 
 class RemoteExecuteError(Exception):

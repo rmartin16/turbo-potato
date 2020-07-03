@@ -7,7 +7,7 @@ import PTN
 from turbopotato.media_defs import MediaNameParse
 from turbopotato.media_defs import MediaType
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('parse')
 
 
 def parse(filepath: Path = None):

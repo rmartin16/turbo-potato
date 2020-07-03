@@ -20,7 +20,7 @@ from turbopotato.query import TVDBQuery
 from turbopotato.torrents import torrents
 from turbopotato.transit import send_file
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('media')
 
 MEDIA_ROOT = PurePosixPath("/volume1/Media/")
 DOCUMENTARY_SINGLES_PATH = MEDIA_ROOT / "Documentaries (Singles)"

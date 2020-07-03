@@ -15,7 +15,7 @@ from turbopotato.media_defs import MediaNameParse
 from turbopotato.media_defs import QueryResult
 from turbopotato.media_defs import MediaType
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('query')
 MAX_THREADS = 30
 Q = '"'
 
@@ -148,8 +148,8 @@ class TVDBQuery(DBQuery):
             if self.exact_episode_matches or self.fuzzy_episode_matches:
                 break
 
-        self.exact_matches = [QueryResult(data=e, media_type=MediaType.SERIES) for e in self.exact_episode_matches]
-        self.fuzzy_matches = [QueryResult(data=e, media_type=MediaType.SERIES) for e in self.fuzzy_episode_matches]
+        self.exact_matches = list({QueryResult(data=e, media_type=MediaType.SERIES) for e in self.exact_episode_matches})
+        self.fuzzy_matches = list({QueryResult(data=e, media_type=MediaType.SERIES) for e in self.fuzzy_episode_matches})
 
         self.print_query_summary()
         logger.info('<<< Finished TVDB query')
@@ -315,5 +315,5 @@ class TMDBQuery(DBQuery):
             else:
                 logger.debug(f'TMDB returned zero results for "{title}{f" ({year}){Q}" if year else f"{Q}"}.')
 
-        self.exact_matches = [QueryResult(data=movie, media_type=MediaType.MOVIE) for movie in self.exact_movie_list]
-        self.fuzzy_matches = [QueryResult(data=movie, media_type=MediaType.MOVIE) for movie in self.fuzzy_movie_list]
+        self.exact_matches = list({QueryResult(data=movie, media_type=MediaType.MOVIE) for movie in self.exact_movie_list})
+        self.fuzzy_matches = list({QueryResult(data=movie, media_type=MediaType.MOVIE) for movie in self.fuzzy_movie_list})

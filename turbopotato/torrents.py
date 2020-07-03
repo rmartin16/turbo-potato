@@ -7,7 +7,7 @@ from qbittorrentapi import APIError as qBittorrentError
 
 from turbopotato.config import config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('torrents')
 
 
 class Torrents:

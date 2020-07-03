@@ -10,7 +10,7 @@ from turbopotato.media import File
 from turbopotato.media import Media
 from turbopotato.query import TVDBQuery
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('prompt')
 
 
 class Abort(Exception):
@@ -261,15 +261,13 @@ def prompt_new_media_information(file: File,
         if is_comedy:
             genre_ids.add(35)
         return is_query_again, QueryResult(media_type=media_type,
-                                           data=dict(
-                                               title=answers.get('title'),
-                                               genre_ids=genre_ids,
-                                               release_date=answers.get('year'),
-                                               _series=dict(seriesName=answers.get('title')),
-                                               airedEpisodeNumber=answers.get('episode'),
-                                               airedSeason=answers.get('season'),
-                                               episodeName=answers.get('episodeName'))
-                                           )
+                                           data=dict(title=answers.get('title'),
+                                                     genre_ids=genre_ids,
+                                                     release_date=answers.get('year'),
+                                                     _series=dict(seriesName=answers.get('title')),
+                                                     airedEpisodeNumber=answers.get('episode'),
+                                                     airedSeason=answers.get('season'),
+                                                     episodeName=answers.get('episodeName')))
 
 
 def prompt_list_of_matches(file: File, match_type: str, choices: list):

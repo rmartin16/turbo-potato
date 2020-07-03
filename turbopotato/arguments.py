@@ -7,7 +7,7 @@ from turbopotato.exceptions import NoMediaFiles
 from turbopotato.extensions import extensions
 from turbopotato.torrents import torrents
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('args')
 
 
 class Arguments:

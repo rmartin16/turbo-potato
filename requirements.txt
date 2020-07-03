@@ -1,7 +1,7 @@
 unidecode
 PyInquirer
 #git+git://github.com/divijbindlish/parse-torrent-name.git
-git+git://github.com/platelminto/parse-torrent-name.git
+git+git://github.com/platelminto/parse-torrent-title.git@dev
 requests
 tvdbsimple
 tmdbsimple

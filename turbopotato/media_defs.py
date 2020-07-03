@@ -3,7 +3,7 @@ import logging
 import string
 import unidecode
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('defs')
 
 
 class MediaType(Enum):
@@ -86,6 +86,22 @@ class MediaName:
         self.movie_id = None
 
         self.fuzzy_match_score = -1
+
+    def __hash__(self):
+        if self.media_type is MediaType.MOVIE:
+            return hash(''.join((self.title, self.year)))
+        elif self.media_type is MediaType.SERIES:
+            return hash(''.join(map(str, (self.title, self.season, self.episode, self.episode_name))))
+        else:
+            return super().__hash__()
+
+    def __eq__(self, other):
+        return (
+            isinstance(other, self.__class__) and
+            isinstance(self.media_type, MediaType) and isinstance(getattr(other, 'media_type'), MediaType) and
+            self.media_type is getattr(other, 'media_type') and
+            all(getattr(self, a) == getattr(other, a) for a in ('title', 'year', 'season', 'episode', 'episode_name'))
+        )
 
     def is_documentary(self):
         return 99 in getattr(self, 'genre_ids', set())

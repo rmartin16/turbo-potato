@@ -7,4 +7,4 @@ export PYTHONUNBUFFERED=1
 
 #. /home/user/.bash_qbittorrentapi_defaults.sh
 
-/home/user/python/turbo-potato/venv/bin/python /home/user/python/turbo-potato/run.py --non_interactive -t "$TORRENT_PATH" > "/home/user/znp_logs/$TORRENT_NAME.txt" 2>&1
+$HOME/python/turbo-potato/venv/bin/python $HOME/python/turbo-potato/run.py --non_interactive -t "$TORRENT_PATH" > "$HOME/znp_logs/$TORRENT_NAME.txt" 2>&1

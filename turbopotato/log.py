@@ -36,10 +36,10 @@ class Log:
             'disable_existing_loggers': False,
             'formatters': {
                 'fixed_width': {
-                    'format': '[%(asctime)s] {%(name)21s:%(lineno)3d} %(levelname)5s - %(message)s'
+                    'format': '[%(asctime)s] {%(name)10s:%(lineno)3d} %(levelname)5s - %(message)s'
                 },
                 'console': {
-                    'format': '[%(asctime)s] {%(name)21s:%(lineno)3d} %(levelname)5s - %(message)s'
+                    'format': '[%(asctime)s] {%(name)10s:%(lineno)3d} %(levelname)5s - %(message)s'
                 }
             },
             'handlers': {
