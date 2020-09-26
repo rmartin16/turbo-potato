@@ -23,7 +23,7 @@ class Arguments:
         self.paths = list()
         self.files = set()
 
-        self._parser = argparse.ArgumentParser()
+        self._parser = argparse.ArgumentParser(prog='turbopotato', description='transmit torrents')
         self._parser.add_argument('-t', '--torrents',
                                   action='store_true',
                                   help='specify if media files are part of a torrent in qBittorrent')

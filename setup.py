@@ -14,6 +14,7 @@ setup(
                       'urwid',
                       'qbittorrent-api',
                       'nltk'],
+    entry_points={'console_scripts': ['turbopotato = turbopotato.__main__:main']},
     url='https://github.com/rmartin16/turbo-potato',
     author='Russell Martin',
     description='Media torrent manager',
