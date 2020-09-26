@@ -55,3 +55,5 @@ def parse_tweak(parts: MediaNameParse = None):
         parts.series_id = 299139
     elif 'the outsider' in parts.title.lower():
         parts.series_id = 365480
+    elif 'the boys' in parts.title.lower():
+        parts.series_id = 355567
