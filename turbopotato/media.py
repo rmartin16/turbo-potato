@@ -162,7 +162,11 @@ class Media:
         for file in files_copy:
             # traverse the filepath parts backwards trying to find the torrent by name.
             # as long as a torrent name isn't changed, torrents will be the name of the file or one of its parent dirs
-            torrent = next(filter(None, map(torrents.get_torrent, reversed(file.filepath.parts))), None)
+            # torrent = next(filter(None, map(torrents.get_torrent, reversed(file.filepath.parts))), None)
+            torrent = None
+            for count in range(len(file.filepath.parts)-1, 0, -1):
+                if torrent := torrents.get_torrent_by_filepath('/'.join(file.filepath.parts[count:])):
+                    break
 
             if torrent is None:
                 logger.warning(f'Torrent not found. Skipping "{file.filepath}"')

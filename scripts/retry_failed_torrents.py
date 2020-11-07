@@ -1,4 +1,4 @@
-#!/home/user/python/media_transport/venv/bin/python
+#!/home/user/.pyenv/versions/qbt/bin/python
 import json
 from pathlib import Path
 import shlex
@@ -25,7 +25,7 @@ try:
                 subprocess.call(
                     ' '.join(
                         [
-                            '/home/user/python/turbo-potato/venv/bin/python -u /home/user/python/turbo-potato/run.py',
+                            '/home/user/.pyenv/versions/qbt/bin/python -u -m turbopotato',
                             '--non-interactive',
                             '--no-notification-on-failure',
                             '--torrents',

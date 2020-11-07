@@ -42,7 +42,7 @@ class Torrents:
                            exc_info=True)
             return None
 
-    def get_torrent(self, torrent_name: str = None, torrent_hash: str = None):  # -> Union[qbt_api.TorrentDictionary, None]:
+    def get_torrent(self, torrent_name: str = None, torrent_hash: str = None):  # -> Union[qbt_api.TorrentDictionary, None]
         if torrent_hash:
             try:
                 return self.qbt_client.torrents.info(hashes=torrent_hash)[0]
@@ -55,7 +55,13 @@ class Torrents:
                     return torrent
         return None
 
-    # def is_already_transiting(torrent: qbt_api.TorrentDictionary = None) -> bool:
+    def get_torrent_by_filepath(self, filepath: str):
+        for torrent in self.qbt_client.torrents.info():
+            for file in torrent.files:
+                if file.name == filepath:
+                    return torrent
+        return None
+
     def is_transiting(self, torrent=None, torrent_hash: str = None) -> bool:
         if torrent_hash:
             torrent = self.get_torrent(torrent_hash=torrent_hash)

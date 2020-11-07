@@ -72,3 +72,4 @@ def run(paths: Union[List, Tuple, AnyStr] = None, torrents: bool = False, force_
 
 if __name__ == '__main__':
     main()
+
