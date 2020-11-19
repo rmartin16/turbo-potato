@@ -1,3 +1,4 @@
+from datetime import datetime
 from functools import partial
 import logging
 from nltk.corpus import stopwords
@@ -77,7 +78,7 @@ class DBQuery:
                     except TypeError:
                         logger.error(f'Input token could not be joined as a string: {type(token)}. Token: {token}')
                         continue
-                tokens = tokens + ' ' + token
+                tokens = tokens + ' ' + str(token)
             return clean_and_tokenize(tokens)
 
         source_tokens = tokenize(source)
@@ -223,7 +224,10 @@ class TVDBQuery(DBQuery):
         if series is None or parts is None:
             return
         ''' use free-text output from parser to match against episode titles '''
-        parse_tokens = [parts.title, parts.episode_name, parts.group, parts.excess]
+        parse_tokens = [parts.title, parts.episode_name, parts.year, parts.month, parts.day, parts.group, parts.excess]
+        parse_date = None
+        if parts.year and parts.month and parts.day:
+            parse_date = datetime(parts.year, parts.month, parts.day)
 
         if parse_tokens:
             logger.debug(f'Fuzzy matching against {series["seriesName"]}')
@@ -238,13 +242,26 @@ class TVDBQuery(DBQuery):
                 logger.debug(f'TVDB returned zero episodes: Error: {err_str(e)}')
 
             for episode in (e for e in all_episode_list if e.get('episodeName')):
+                episode['_series'] = series
+
+                if parse_date and (aired_date := episode.get('firstAired')):
+                    try:
+                        aired_date = datetime.strptime(aired_date, '%Y-%m-%d')
+                    except Exception as e:
+                        logger.error(f'Failed to parse Aired Date "{aired_date}". Error: {repr(e)}')
+                    else:
+                        if parse_date == aired_date:
+                            logger.debug(f'Found episode "{episode.get("episodeName")}" with Aired Date '
+                                         f'{aired_date.date()} and Parse Date {parse_date.date()}')
+                            add_unique_elements(self.exact_episode_matches, episode)
+                            continue
+
                 score = self.calculate_match_score(source=parse_tokens,
                                                    target=episode.get('episodeName', ''),
                                                    target_aired_date=episode.get('firstAired', ''))
                 if score > 0:
                     logger.debug(f'Found episode "{episode.get("episodeName")} for "{series.get("seriesName")}')
                     episode['_fuzzy_score'] = score
-                    episode['_series'] = series
                     add_unique_elements(self.fuzzy_episode_matches, episode)
 
 
