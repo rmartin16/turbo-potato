@@ -328,6 +328,7 @@ class TMDBQuery(DBQuery):
                         score = self.calculate_match_score(source=title, target=movie['title'])
                         if score:
                             logger.debug(f'Found fuzzy match for "{title}": {movie["title"]}')
+                            movie['_fuzzy_score'] = score
                             add_unique_elements(self.fuzzy_movie_list, movie)
             else:
                 logger.debug(f'TMDB returned zero results for "{title}{f" ({year}){Q}" if year else f"{Q}"}.')

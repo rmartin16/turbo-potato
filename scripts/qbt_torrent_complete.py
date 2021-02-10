@@ -18,6 +18,7 @@ with open(Path(__file__).parent / 'qbittorrent_config.txt') as file:
 
 qbt = Client(**qbt_config)
 
+time.sleep(2)  # give a little time for qbt to start checking the torrent
 upload = False
 start_time = time.time()
 while True:
@@ -26,10 +27,11 @@ while True:
     except:
         sys.exit(1)
     else:
+        print(f'{args.torrent_name=} {torrent.state=}')
         if torrent.state not in ('checkingUP', 'checkingDL', 'downloading', 'stalledDL', 'pausedDL', 'metaDL'):
             upload = True
             break
-        if time.time() - start_time > 3600:
+        if time.time() - start_time > 60*60:
             break
         time.sleep(1)
 

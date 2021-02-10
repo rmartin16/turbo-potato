@@ -9,8 +9,8 @@ from subprocess import run, PIPE, STDOUT
 from qbittorrentapi import Client
 from qbittorrentapi import APIError
 
-import logging
-logging.basicConfig(level=logging.INFO)
+#import logging
+#logging.basicConfig(level=logging.INFO)
 # logging.disable(level=logging.CRITICAL)
 # logging.basicConfig(level=logging.WARNING,
 #                    format='[%(asctime)s] {%(name)s:%(lineno)d} %(levelname)s - %(message)s',

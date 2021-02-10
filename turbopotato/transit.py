@@ -46,7 +46,7 @@ def send_command(remote_cmd=None):
         for line in p.stdout:
             # only print every 10th output for rsync upload status
             if 'rsync' in remote_cmd and "%" in line:
-                if count % 30 == 0:  # about every 30 seconds
+                if count % 10 == 0:  # about every 10 seconds
                     logger.debug("Output: %s" % str(line).rstrip())
                 count += 1
             else:
