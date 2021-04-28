@@ -17,7 +17,8 @@ def notify(media: Media, logs: Log):
 
     for file_group in file_groups:
         if file_group.success:
-            subject = f'Added Media Successfully ({file_group.name})'
+            dest_dir = file_group.files[0].destination_directory.parts[-2]
+            subject = f'Added Media to {dest_dir} ({file_group.name})'
         else:
             if args.no_notification_on_failure:
                 continue

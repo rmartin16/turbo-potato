@@ -82,7 +82,7 @@ class Tormon(object):
 
 def print_free_space():
     output = []
-    df_cmd = '/bin/df -h | grep -E "/dev/mapper/xubuntu--vg-root|Filesystem"'
+    df_cmd = '/bin/df -h | grep -E "/dev/vda1|Filesystem"'
     result = run([df_cmd], shell=True, stdout=PIPE, stderr=STDOUT, encoding='utf-8')
     for line in [line for line in result.stdout.split('\n') if line != ""]:
         output.append(line)
